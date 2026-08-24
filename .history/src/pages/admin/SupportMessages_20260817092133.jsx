@@ -1,0 +1,202 @@
+/**
+ * LETCON - Support Messages Page
+ * Admin views and replies to user support messages.
+ * Supports individual messaging, broadcast to all users, and file attachments.
+ */
+import { useState } from 'react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
+import { useFirestoreQuery } from '../../hooks/useFirestoreQuery';
+import { addDocument } from '../../services/firestoreService';
+import { COLLECTIONS } from '../../config/constants';
+import { formatRelativeTime } from '../../utils/formatters';
+import PageHeader from '../../components/ui/PageHeader';
+import Card, { CardHeader, CardTitle, CardBody } from '../../components/ui/Card';
+import Input from '../../components/ui/Input';
+import Button from '../../components/ui/Button';
+import Badge from '../../components/ui/Badge';
+import Spinner from '../../components/ui/Spinner';
+import EmptyState from '../../components/ui/EmptyState';
+
+/**
+ * Support messages page component.
+ */
+export default function SupportMessages() {
+  const { user, userData } = useAuth();
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  // Get all support messages (staff can read all)
+  const { data: allMessages, loading } = useFirestoreQuery(COLLECTIONS.MESSAGES, {
+    orderByFields: [{ field: 'createdAt', direction: 'desc' }],
+    limitCount: 100,
+  });
+
+  // Group messages by user
+  const conversations = {};
+  allMessages.forEach((msg) => {
+    const uid = msg.uid || msg.senderId;
+    if (!conversations[uid]) {
+      conversations[uid] = {
+        uid,
+        userName: msg.senderName || 'User',
+        messages: [],
+        lastMessage: msg,
+      };
+    }
+    conversations[uid].messages.push(msg);
+  });
+
+  const conversationList = Object.values(conversations).sort((a, b) => {
+    const aTime = a.lastMessage.createdAt?.toDate?.() || a.lastMessage.createdAt || 0;
+    const bTime = b.lastMessage.createdAt?.toDate?.() || b.lastMessage.createdAt || 0;
+    return new Date(bTime) - new Date(aTime);
+  });
+
+  const selectedConversation = selectedUser
+    ? conversations[selectedUser]
+    : null;
+
+  /**
+   * Sends a reply to the selected user.
+   */
+  const handleSend = async () => {
+    if (!message.trim() || !selectedUser) return;
+    setSending(true);
+    try {
+      await addDocument(COLLECTIONS.MESSAGES, {
+        uid: selectedUser,
+        senderId: user.uid,
+        senderName: userData?.fullName || 'Support',
+        senderRole: userData?.role || 'admin',
+        content: message.trim(),
+        isSupportReply: true,
+        createdAt: new Date(),
+      });
+      setMessage('');
+      toast.success('Reply sent!');
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (loading) {
+    return <Spinner label="Loading support messages..." />;
+  }
+
+  return (
+    <div className="dashboard-page">
+      <PageHeader
+        title="Support Messages"
+        subtitle="View and reply to user support messages"
+        icon={<FaHeadset />}
+      />
+
+      <div className="support-layout">
+        <Card className="support-conversations">
+          <CardHeader>
+            <CardTitle>Conversations</CardTitle>
+          </CardHeader>
+          <CardBody>
+            {conversationList.length === 0 ? (
+              <EmptyState
+                icon={<FaHeadset />}
+                title="No support messages"
+                message="When users send messages, they will appear here."
+              />
+            ) : (
+              <div className="support-conversation-list">
+                {conversationList.map((conv) => (
+                  <button
+                    key={conv.uid}
+                    type="button"
+                    className={`support-conversation-item ${selectedUser === conv.uid ? 'active' : ''}`}
+                    onClick={() => setSelectedUser(conv.uid)}
+                  >
+                    <div className="support-conversation-avatar">
+                      <FaUser />
+                    </div>
+                    <div className="support-conversation-info">
+                      <span className="support-conversation-name">{conv.userName}</span>
+                      <span className="support-conversation-preview">
+                        {conv.lastMessage.content?.slice(0, 50)}
+                      </span>
+                    </div>
+                    <span className="support-conversation-time">
+                      {formatRelativeTime(conv.lastMessage.createdAt?.toDate?.() || conv.lastMessage.createdAt)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card className="support-thread">
+          <CardHeader>
+            <CardTitle>
+              {selectedConversation ? `Conversation with ${selectedConversation.userName}` : 'Select a conversation'}
+            </CardTitle>
+          </CardHeader>
+          <CardBody>
+            {!selectedConversation ? (
+              <EmptyState
+                icon={<FaHeadset />}
+                title="No conversation selected"
+                message="Select a user from the left to view and reply to their messages."
+              />
+            ) : (
+              <>
+                <div className="messages-thread">
+                  {selectedConversation.messages
+                    .sort((a, b) => {
+                      const aTime = a.createdAt?.toDate?.() || a.createdAt || 0;
+                      const bTime = b.createdAt?.toDate?.() || b.createdAt || 0;
+                      return new Date(aTime) - new Date(bTime);
+                    })
+                    .map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`message-bubble ${msg.senderId === user?.uid ? 'own' : 'other'}`}
+                      >
+                        <div className="message-bubble-header">
+                          <span className="message-bubble-sender">
+                            {msg.senderName || 'User'}
+                            {msg.isSupportReply && <Badge variant="info" size="sm">Support</Badge>}
+                          </span>
+                          <span className="message-bubble-time">
+                            {formatRelativeTime(msg.createdAt?.toDate?.() || msg.createdAt)}
+                          </span>
+                        </div>
+                        <p className="message-bubble-content">{msg.content}</p>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="message-composer">
+                  <Input
+                    placeholder="Type your reply..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                  />
+                  <Button onClick={handleSend} loading={sending}>
+                    <FaPaperPlane /> Reply
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+    </div>
+  );
+}

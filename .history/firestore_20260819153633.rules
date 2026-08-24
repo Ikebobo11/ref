@@ -1,0 +1,317 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin(uid) {
+      return uid != null && signedIn() &&
+        (exists(/databases/$(database)/documents/users/$(uid)) &&
+         get(/databases/$(database)/documents/users/$(uid)).data.role == 'admin') ||
+        exists(/databases/$(database)/documents/admins/$(uid));
+    }
+
+    function isSuperAdmin(uid) {
+      return uid != null && signedIn() &&
+        (exists(/databases/$(database)/documents/users/$(uid)) &&
+         get(/databases/$(database)/documents/users/$(uid)).data.role == 'super_admin') ||
+        (exists(/databases/$(database)/documents/admins/$(uid)) &&
+         get(/databases/$(database)/documents/admins/$(uid)).data.role == 'super_admin');
+    }
+
+    function isStaff(uid) {
+      return isAdmin(uid) || isSuperAdmin(uid);
+    }
+
+    function isAdvertiser(uid) {
+      return uid != null &&
+        exists(/databases/$(database)/documents/advertisers/$(uid));
+    }
+
+    function isEarner(uid) {
+      return uid != null &&
+        exists(/databases/$(database)/documents/earners/$(uid));
+    }
+
+    function docOwnedByUser(doc, uid) {
+      return doc.data.uid == uid;
+    }
+
+    // ============================================================
+    // User Profiles & Role Collections
+    // ============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isStaff(request.auth.uid);
+      allow create: if isOwner(uid) && request.resource.data.uid == uid;
+      allow update: if isOwner(uid) || isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /earners/{uid} {
+      allow read: if isOwner(uid) || isStaff(request.auth.uid);
+      allow create: if isOwner(uid) && request.resource.data.uid == uid;
+      allow update: if isOwner(uid) || isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /advertisers/{uid} {
+      allow read: if isOwner(uid) || isStaff(request.auth.uid);
+      allow create: if isOwner(uid) && request.resource.data.uid == uid;
+      allow update: if isOwner(uid) || isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin(request.auth.uid) || isAdmin(request.auth.uid);
+      allow create: if isOwner(uid) || isSuperAdmin(request.auth.uid);
+      allow update: if isOwner(uid) || isSuperAdmin(request.auth.uid);
+      allow delete: if isSuperAdmin(request.auth.uid);
+    }
+
+    // ============================================================
+    // Wallets
+    // ============================================================
+
+    match /wallets/{uid} {
+      allow read: if isOwner(uid) || isStaff(request.auth.uid);
+      allow create: if isOwner(uid) && request.resource.data.uid == uid;
+      // Advertisers release payments to earner wallets during task approval,
+      // and earners update their own wallet on withdrawal.
+      allow update: if isOwner(uid) || isStaff(request.auth.uid) || isAdvertiser(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Transactions
+    // ============================================================
+
+    match /transactions/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      // Users create their own fee/funding transactions. Advertisers also
+      // create earner + platform transactions during task-approval payouts.
+      allow create: if signedIn();
+      allow update: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Notifications
+    // ============================================================
+
+    match /notifications/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      // System-generated notifications for earners/advertisers are created
+      // client-side during approval workflows, so signed-in users may create.
+      allow create: if signedIn();
+      allow update: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow delete: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+    }
+
+    // ============================================================
+    // Wallets & Withdrawals
+    // ============================================================
+
+    match /withdrawals/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow create: if isOwner(request.resource.data.uid);
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Tasks & Campaigns
+    // ============================================================
+
+    match /tasks/{taskId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.advertiserId == request.auth.uid;
+      allow update: if signedIn() &&
+        (resource.data.advertiserId == request.auth.uid || isStaff(request.auth.uid));
+      allow delete: if signedIn() &&
+        (resource.data.advertiserId == request.auth.uid || isStaff(request.auth.uid));
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.advertiserId == request.auth.uid;
+      allow update: if signedIn() &&
+        (resource.data.advertiserId == request.auth.uid || isStaff(request.auth.uid));
+      allow delete: if signedIn() &&
+        (resource.data.advertiserId == request.auth.uid || isStaff(request.auth.uid));
+    }
+
+    // ============================================================
+    // Task Acceptances & Submissions
+    // ============================================================
+
+    match /taskAcceptances/{docId} {
+      allow read: if signedIn() &&
+        (resource.data.earnerId == request.auth.uid ||
+         isStaff(request.auth.uid) ||
+         (resource.data.taskId != null &&
+          exists(/databases/$(database)/documents/tasks/$(resource.data.taskId)) &&
+          get(/databases/$(database)/documents/tasks/$(resource.data.taskId)).data.advertiserId == request.auth.uid));
+      allow create: if isOwner(request.resource.data.earnerId);
+      allow update: if signedIn() &&
+        (resource.data.earnerId == request.auth.uid || isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /taskSubmissions/{docId} {
+      allow read: if signedIn() &&
+        (resource.data.earnerId == request.auth.uid ||
+         isStaff(request.auth.uid) ||
+         (resource.data.taskId != null &&
+          exists(/databases/$(database)/documents/tasks/$(resource.data.taskId)) &&
+          get(/databases/$(database)/documents/tasks/$(resource.data.taskId)).data.advertiserId == request.auth.uid));
+      allow create: if isOwner(request.resource.data.earnerId);
+      // Advertisers approve/reject submissions, so they need update access.
+      allow update: if signedIn() &&
+        (resource.data.earnerId == request.auth.uid ||
+         isStaff(request.auth.uid) ||
+         isAdvertiser(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Messages & Conversations
+    // ============================================================
+
+    match /messages/{docId} {
+      // Any signed-in user can read messages they sent or are a participant of.
+      // Staff can read all messages.
+      allow read: if signedIn() &&
+        (isStaff(request.auth.uid) ||
+         resource.data.senderId == request.auth.uid ||
+         (resource.data.participants != null &&
+          resource.data.participants.hasAny([request.auth.uid])));
+      // Any signed-in user can create a message as themselves.
+      allow create: if signedIn() &&
+        request.resource.data.senderId == request.auth.uid;
+      // Sender and staff can update messages (e.g., mark as read).
+      allow update: if signedIn() &&
+        (resource.data.senderId == request.auth.uid ||
+         isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+    }
+
+    match /conversations/{docId} {
+      // Any signed-in user can read conversations they're a participant in.
+      // Staff can read all conversations.
+      allow read: if signedIn() &&
+        (isStaff(request.auth.uid) ||
+         (resource.data.participants != null &&
+          resource.data.participants.hasAny([request.auth.uid])));
+      // Any signed-in user can create a conversation they're a participant in.
+      allow create: if signedIn() &&
+        request.resource.data.participants != null &&
+        request.resource.data.participants.hasAny([request.auth.uid]);
+      // Participants and staff can update conversations.
+      allow update: if signedIn() &&
+        (isStaff(request.auth.uid) ||
+         (resource.data.participants != null &&
+          resource.data.participants.hasAny([request.auth.uid])));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /broadcasts/{docId} {
+      allow read: if signedIn();
+      allow create: if isStaff(request.auth.uid);
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Verification, Upgrade & Account-Change Requests
+    // ============================================================
+
+    match /verificationRequests/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow create: if isOwner(request.resource.data.uid);
+      allow update: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /upgradeRequests/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow create: if isOwner(request.resource.data.uid);
+      allow update: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /accountChangeRequests/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow create: if isOwner(request.resource.data.uid);
+      allow update: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Admin-Only Collections
+    // ============================================================
+
+    match /reports/{docId} {
+      allow read: if isStaff(request.auth.uid);
+      allow create: if signedIn();
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /settings/{docId} {
+      allow read: if signedIn();
+      allow create: if isStaff(request.auth.uid);
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /auditLogs/{docId} {
+      allow read: if isStaff(request.auth.uid);
+      allow create: if signedIn();
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    match /disputes/{docId} {
+      allow read: if signedIn() &&
+        (docOwnedByUser(resource, request.auth.uid) || isStaff(request.auth.uid));
+      allow create: if signedIn();
+      allow update: if isStaff(request.auth.uid);
+      allow delete: if isStaff(request.auth.uid);
+    }
+
+    // ============================================================
+    // Fallback: deny everything not explicitly allowed above
+    // ============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

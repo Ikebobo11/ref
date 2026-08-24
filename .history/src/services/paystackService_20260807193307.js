@@ -1,0 +1,122 @@
+/**
+ * LETCON - Paystack Service
+ * Handles payment initialization, verification, and webhook processing.
+ */
+import axios from 'axios';
+import { PAYSTACK_PUBLIC_KEY, isPaystackConfigured, generateReference } from '../config/paystack';
+import { FEES, COLLECTIONS } from '../config/constants';
+import { addDocument, updateDocument, getDocument } from './firestoreService';
+
+/** Paystack API base URL */
+const PAYSTACK_API_URL = 'https://api.paystack.co';
+
+/**
+ * Initializes a Paystack payment.
+ * @param {Object} options - Payment options.
+ * @param {string} options.email - Customer email.
+ * @param {number} options.amount - Amount in naira.
+ * @param {string} options.metadata - Metadata JSON string.
+ * @param {string} [options.reference] - Custom reference (auto-generated if not provided).
+ * @returns {Promise<Object>} Payment initialization result.
+ */
+export async function initializePayment({ email, amount, metadata, reference }) {
+  if (!isPaystackConfigured) {
+    throw new Error('Paystack is not configured. Add VITE_PAYSTACK_PUBLIC_KEY to .env');
+  }
+
+  const ref = reference || generateReference('PAY');
+
+  try {
+    // In production, this should be called from a Cloud Function to keep the secret key server-side.
+    // For the frontend, we use the inline checkout which handles this client-side.
+    return {
+      reference: ref,
+      email,
+      amount,
+      metadata,
+    };
+  } catch (error) {
+    console.error('[LETCON] Paystack initialization error:', error);
+    throw new Error('Failed to initialize payment');
+  }
+}
+
+/**
+ * Verifies a Paystack transaction.
+ * @param {string} reference - The transaction reference.
+ * @returns {Promise<Object>} Verification result.
+ */
+export async function verifyTransaction(reference) {
+  try {
+    // This should be called from a Cloud Function in production.
+    // The frontend should not have access to the secret key.
+    const response = await axios.get(`${PAYSTACK_API_URL}/transaction/verify/${reference}`, {
+      headers: {
+        Authorization: `Bearer ${import.meta.env.PAYSTACK_SECRET_KEY}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[LETCON] Paystack verification error:', error);
+    throw new Error('Failed to verify payment');
+  }
+}
+
+/**
+ * Records a verification fee payment.
+ * @param {Object} options - Payment options.
+ * @param {string} options.uid - The user ID.
+ * @param {string} options.email - The user email.
+ * @param {string} options.reference - The payment reference.
+ * @returns {Promise<Object>} The created transaction record.
+ */
+export async function recordVerificationFeePayment({ uid, email, reference }) {
+  const transaction = await addDocument(COLLECTIONS.TRANSACTIONS, {
+    uid,
+    email,
+    type: 'verification_fee',
+    amount: FEES.VERIFICATION_FEE,
+    status: 'pending',
+    reference,
+    description: 'Earner verification fee',
+    createdAt: new Date(),
+  });
+
+  return transaction;
+}
+
+/**
+ * Records a task posting fee payment.
+ * @param {Object} options - Payment options.
+ * @param {string} options.uid - The user ID.
+ * @param {string} options.email - The user email.
+ * @param {string} options.reference - The payment reference.
+ * @param {string} options.taskId - The task ID.
+ * @returns {Promise<Object>} The created transaction record.
+ */
+export async function recordTaskPostingFee({ uid, email, reference, taskId }) {
+  const transaction = await addDocument(COLLECTIONS.TRANSACTIONS, {
+    uid,
+    email,
+    type: 'task_posting_fee',
+    amount: FEES.TASK_POSTING_FEE,
+    status: 'pending',
+    reference,
+    taskId,
+    description: 'Task posting fee',
+    createdAt: new Date(),
+  });
+
+  return transaction;
+}
+
+/**
+ * Records a wallet funding transaction.
+ * @param {Object} options - Payment options.
+ * @param {string} options.uid - The user ID.
+ * @param {string} options.email - The user email.
+ * @param {number} options.amount - The funding amount.
+ * @param {string} options.reference - The payment reference.
+ * @returns {Promise<Object>} The created transaction record.
+ */
+export async function recordWalletFunding({ uid, email, amount, reference }) {

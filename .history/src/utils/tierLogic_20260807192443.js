@@ -1,0 +1,31 @@
+/**
+ * LETCON - Tier & Revenue Logic
+ * Core business rules for follower tiers, platform matching, and revenue splits.
+ */
+import {
+  TIERS,
+  TIER_MIN_FOLLOWERS,
+  TIER_PAYMENTS,
+  REVENUE_SPLIT,
+  PLATFORMS,
+} from '../config/constants';
+
+/**
+ * Determines the tier for a given follower count.
+ * @param {number} followerCount - The follower count.
+ * @returns {string} The tier key ('5K', '10K', or '15K').
+ */
+export function getTierFromFollowers(followerCount) {
+  if (followerCount >= TIER_MIN_FOLLOWERS[TIERS.TIER_3]) return TIERS.TIER_3;
+  if (followerCount >= TIER_MIN_FOLLOWERS[TIERS.TIER_2]) return TIERS.TIER_2;
+  if (followerCount >= TIER_MIN_FOLLOWERS[TIERS.TIER_1]) return TIERS.TIER_1;
+  return null;
+}
+
+/**
+ * Gets the payment amount for a tier and platform.
+ * @param {string} tier - The tier key ('5K', '10K', '15K').
+ * @param {string} platform - The platform name.
+ * @returns {number} The payment amount in naira.
+ */
+export function getTierPayment(tier, platform) {

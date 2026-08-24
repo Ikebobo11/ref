@@ -1,0 +1,96 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin(uid) {
+      return uid != null &&
+        exists(/databases/(default)/documents/admins/$(uid));
+    }
+
+    function isSuperAdmin(uid) {
+      return uid != null && signedIn() &&
+        get(/databases/(default)/documents/users/$(uid)).data.role == 'super_admin';
+    }
+
+    function isStaff(uid) {
+      return isAdmin(uid) || isSuperAdmin(uid);
+    }
+
+    // ============================================================
+    // Verification Proofs
+    // Path: verification-proofs/{uid}/{fileName}
+    // ============================================================
+
+    match /verification-proofs/{uid}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff(request.auth.uid));
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Task Media
+    // Path: task-media/{uid}/{fileName}
+    // ============================================================
+
+    match /task-media/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Task Proofs
+    // Path: task-proofs/{uid}/{fileName}
+    // ============================================================
+
+    match /task-proofs/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Profile Pictures
+    // Path: profile-pictures/{uid}/{fileName}
+    // ============================================================
+
+    match /profile-pictures/{uid}/{fileName} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Upgrade Proofs
+    // Path: upgrade-proofs/{uid}/{fileName}
+    // ============================================================
+
+    match /upgrade-proofs/{uid}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff(request.auth.uid));
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Account Change Proofs
+    // Path: account-change-proofs/{uid}/{fileName}
+    // ============================================================
+
+    match /account-change-proofs/{uid}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff(request.auth.uid));
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ============================================================
+    // Fallback: deny everything not explicitly allowed above
+    // ============================================================
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

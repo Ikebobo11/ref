@@ -1,0 +1,27 @@
+/**
+ * LETCON - Wallet Service
+ * Handles wallet operations: funding, withdrawals, and balance management.
+ */
+import {
+  getDocument,
+  updateDocument,
+  addDocument,
+  queryDocuments,
+  executeTransaction,
+} from './firestoreService';
+import { COLLECTIONS, TRANSACTION_TYPES, TRANSACTION_STATUS, WITHDRAWAL_STATUS } from '../config/constants';
+import { generateReference } from '../config/paystack';
+import { notifyWithdrawalSuccessful } from './notificationService';
+
+/**
+ * Gets a user's wallet.
+ * @param {string} uid - The user ID.
+ * @returns {Promise<Object|null>} The wallet data.
+ */
+export async function getWallet(uid) {
+  return getDocument(COLLECTIONS.WALLETS, uid);
+}
+
+/**
+ * Funds a user's wallet.
+ * @param {Object} options - Funding options.

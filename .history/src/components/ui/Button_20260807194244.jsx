@@ -1,0 +1,14 @@
+/**
+ * LETCON - Button Component
+ * Reusable button with variants, sizes, and loading states.
+ */
+import { motion } from 'framer-motion';
+import { FaSpinner } from 'react-icons/fa6';
+
+/**
+ * Button component.
+ * @param {Object} props - Component props.
+ * @param {string} [props.variant='primary'] - Button variant: primary, secondary, outline, danger, success, ghost.
+ * @param {string} [props.size='md'] - Button size: sm, md, lg.
+ * @param {boolean} [props.loading=false] - Show loading spinner.
+ * @param {boolean} [props.fullWidth=false] - Make button full width.

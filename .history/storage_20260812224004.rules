@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin(uid) {
+      return uid != null &&
+        exists(/databases/(default)/documents/admins/$(uid));
+    }
+
+    function isSuperAdmin(uid) {
+      return uid != null && signedIn() &&

@@ -1,0 +1,168 @@
+/**
+ * LETCON - Super Admin Settings Page
+ * Full platform configuration: general, tiers, platforms, pricing, uploads, countries, pagination.
+ */
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import {
+  FaGear,
+  FaCreditCard,
+  FaWallet,
+  FaPercent,
+  FaSave,
+  FaPlus,
+  FaTrash,
+  FaGlobe,
+  FaUpload,
+  FaList,
+  FaLayerGroup,
+  FaHashtag,
+} from 'react-icons/fa6';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSettings } from '../../contexts/SettingsContext';
+import { logSettingsUpdate } from '../../services/auditService';
+import PageHeader from '../../components/ui/PageHeader';
+import Card, { CardHeader, CardTitle, CardBody } from '../../components/ui/Card';
+import Input from '../../components/ui/Input';
+import Button from '../../components/ui/Button';
+import Spinner from '../../components/ui/Spinner';
+
+/** Tab definitions */
+const TABS = [
+  { key: 'general', label: 'General', icon: <FaGear /> },
+  { key: 'tiers', label: 'Tiers & Payments', icon: <FaLayerGroup /> },
+  { key: 'platforms', label: 'Platforms', icon: <FaGlobe /> },
+  { key: 'pricing', label: 'Pricing & Fees', icon: <FaCreditCard /> },
+  { key: 'uploads', label: 'Upload Limits', icon: <FaUpload /> },
+  { key: 'countries', label: 'Countries', icon: <FaGlobe /> },
+  { key: 'pagination', label: 'Pagination', icon: <FaList /> },
+];
+
+/**
+ * Settings page component with all configurable sections.
+ */
+export default function Settings() {
+  const { userData } = useAuth();
+  const { settings, loading, updateSettings } = useSettings();
+  const [activeTab, setActiveTab] = useState('general');
+  const [saving, setSaving] = useState(false);
+
+  // Local form state - initialized from settings once loaded
+  const [form, setForm] = useState(null);
+
+  useEffect(() => {
+    if (settings) {
+      setForm({
+        // General
+        platformName: settings.platformName || '',
+        supportEmail: settings.supportEmail || '',
+        appTagline: settings.appTagline || '',
+        currency: settings.currency || 'NGN',
+        currencySymbol: settings.currencySymbol || '₦',
+
+        // Tiers
+        tierList: settings.tierList ? [...settings.tierList] : [],
+        tierMinFollowers: settings.tierMinFollowers ? { ...settings.tierMinFollowers } : {},
+        tierPayments: settings.tierPayments ? JSON.parse(JSON.stringify(settings.tierPayments)) : {},
+
+        // Platforms
+        platformList: settings.platformList ? [...settings.platformList] : [],
+
+        // Pricing
+        verificationFee: settings.verificationFee ?? 1000,
+        taskPostingFee: settings.taskPostingFee ?? 1000,
+        platformRevenuePercent: settings.platformRevenuePercent ?? 30,
+        autoApprovalHours: settings.autoApprovalHours ?? 24,
+        minWithdrawal: settings.minWithdrawal ?? 1000,
+        maxWithdrawal: settings.maxWithdrawal ?? 10000000,
+        minWalletFunding: settings.minWalletFunding ?? 100,
+        maxWalletFunding: settings.maxWalletFunding ?? 10000000,
+        minFollowersToRegister: settings.minFollowersToRegister ?? 1000,
+
+        // Uploads
+        maxImageSizeMB: settings.maxImageSizeMB ?? 5,
+        maxVideoSizeMB: settings.maxVideoSizeMB ?? 50,
+        maxImagesPerTask: settings.maxImagesPerTask ?? 5,
+        maxVideosPerTask: settings.maxVideosPerTask ?? 2,
+        allowedImageTypes: settings.allowedImageTypes ? [...settings.allowedImageTypes] : [],
+        allowedVideoTypes: settings.allowedVideoTypes ? [...settings.allowedVideoTypes] : [],
+
+        // Countries
+        countries: settings.countries ? [...settings.countries] : [],
+
+        // Pagination
+        pageSize: settings.pageSize ?? 10,
+        pageSizeOptions: settings.pageSizeOptions ? [...settings.pageSizeOptions] : [],
+        queryLimitDefault: settings.queryLimitDefault ?? 20,
+        queryLimitLarge: settings.queryLimitLarge ?? 50,
+        queryLimitMax: settings.queryLimitMax ?? 100,
+      });
+    }
+  }, [settings]);
+
+  /**
+   * Updates a single form field.
+   */
+  const updateField = (key, value) => {
+    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  /**
+   * Adds a new tier.
+   */
+  const addTier = () => {
+    const name = window.prompt('Enter tier name (e.g., "20K"):');
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (form.tierList.includes(trimmed)) {
+      toast.error('Tier already exists');
+      return;
+    }
+    const newTierList = [...form.tierList, trimmed];
+    const newMinFollowers = { ...form.tierMinFollowers, [trimmed]: 0 };
+    const newPayments = { ...form.tierPayments, [trimmed]: {} };
+    form.platformList.forEach((p) => {
+      newPayments[trimmed][p] = 0;
+    });
+    setForm((prev) => ({
+      ...prev,
+      tierList: newTierList,
+      tierMinFollowers: newMinFollowers,
+      tierPayments: newPayments,
+    }));
+  };
+
+  /**
+   * Removes a tier.
+   */
+              />
+              <Input
+                label={`Task Posting Fee (${CURRENCY_SYMBOL})`}
+                type="number"
+                icon={<FaWallet />}
+                error={errors.taskPostingFee?.message}
+                {...register('taskPostingFee', { valueAsNumber: true })}
+              />
+              <Input
+                label="Platform Revenue Percent (%)"
+                type="number"
+                icon={<FaPercent />}
+                error={errors.platformRevenuePercent?.message}
+                {...register('platformRevenuePercent', { valueAsNumber: true })}
+              />
+              <Input
+                label="Auto-Approval Hours"
+                type="number"
+                error={errors.autoApprovalHours?.message}
+                {...register('autoApprovalHours', { valueAsNumber: true })}
+              />
+              <Button type="submit" fullWidth loading={saving}>
+                <FaGear /> Save Pricing
+              </Button>
+            </form>
+          </CardBody>
+        </Card>
+      </div>
+    </div>
+  );
+}

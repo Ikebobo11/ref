@@ -1,0 +1,20 @@
+/* =============================================
+   LETCON - Micro Influencer Marketplace
+   Global Styles
+   ============================================= */
+
+/* CSS Custom Properties / Design Tokens */
+:root {
+  /* Brand Colors */
+  --color-primary: #6c5ce7;
+  --color-primary-dark: #5a4bd1;
+  --color-primary-light: #a29bfe;
+  --color-primary-bg: rgba(108, 92, 231, 0.08);
+
+  /* Accent Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Neutral Colors - Light */

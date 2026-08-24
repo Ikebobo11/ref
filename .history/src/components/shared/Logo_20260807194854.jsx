@@ -1,0 +1,2 @@
+/**
+ * LETCON - Logo Component

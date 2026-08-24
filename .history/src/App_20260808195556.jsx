@@ -1,0 +1,36 @@
+/**
+ * LETCON - Root Application Component
+ * Defines the full routing structure for all user roles.
+ */
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { ROLES } from './config/constants';
+
+// Auth Layout & Pages
+import AuthLayout from './layouts/AuthLayout';
+import Login from './pages/auth/Login';
+import AdvertiserRegister from './pages/auth/AdvertiserRegister';
+import EarnerRegister from './pages/auth/EarnerRegister';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import VerificationPayment from './pages/auth/VerificationPayment';
+
+// Earner Layout & Pages
+import EarnerLayout from './layouts/EarnerLayout';
+import EarnerDashboard from './pages/earner/EarnerDashboard';
+import AvailableTasks from './pages/earner/AvailableTasks';
+import AcceptedTasks from './pages/earner/AcceptedTasks';
+import CompletedTasks from './pages/earner/CompletedTasks';
+import EarnerWallet from './pages/earner/EarnerWallet';
+import Withdraw from './pages/earner/Withdraw';
+import Upgrade from './pages/earner/Upgrade';
+import AccountChange from './pages/earner/AccountChange';
+import VerifiedAccount from './pages/earner/VerifiedAccount';
+import EarnerNotifications from './pages/earner/Notifications';
+import EarnerTransactions from './pages/earner/Transactions';
+import EarnerMessages from './pages/earner/Messages';
+
+// Advertiser Layout & Pages
+import AdvertiserLayout from './layouts/AdvertiserLayout';
+import AdvertiserDashboard from './pages/advertiser/AdvertiserDashboard';
+import AdvertiserWallet from './pages/advertiser/AdvertiserWallet';
+import Campaigns from './pages/advertiser/Campaigns';
+import CreateCampaign from './pages/advertiser/CreateCampaign';

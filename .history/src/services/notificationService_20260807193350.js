@@ -1,0 +1,12 @@
+/**
+ * LETCON - Notification Service
+ * Creates in-app notifications and sends FCM push notifications.
+ */
+import { addDocument, getDocument } from './firestoreService';
+import { COLLECTIONS, NOTIFICATION_TYPES } from '../config/constants';
+
+/**
+ * Creates a notification for a user.
+ * @param {Object} options - Notification options.
+ * @param {string} options.uid - The recipient user ID.
+ * @param {string} options.type - The notification type (use NOTIFICATION_TYPES).
